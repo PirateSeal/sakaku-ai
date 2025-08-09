@@ -134,6 +134,29 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   }
 };
 
+export function handleHelp(): DiscordResponse {
+  return {
+    type: 4,
+    data: {
+      content: generateHelpMessage(),
+      flags: EPHEMERAL_FLAG,
+    },
+  };
+}
+
+export function generateHelpMessage(): string {
+  const msg = [
+    'Need assistance? Use `/ask <prompt>` to query the Gemini model.',
+    'The bot replies only to you so conversations stay private.',
+    '',
+    'Example:',
+    '`/ask How do I write a Lambda?`',
+  ].join('\n');
+
+  // Sanitize and ensure we respect Discord limits (2000 char max)
+  return sanitizeForDiscord(msg).slice(0, 2000);
+}
+
 function sanitizeForDiscord(s: string): string {
   // Minimal sanitization to avoid accidental mentions
   return s.replace(/@/g, '@​').slice(0, 1000);
