@@ -6,21 +6,29 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secrets from 'aws-cdk-lib/aws-secretsmanager';
-import * as iam from 'aws-cdk-lib/aws-iam';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 
-export class DiscordBotStack extends cdk.Stack {
+/**
+ * Stack that hosts the SakakuAI Discord bot HTTP endpoint and Lambda handler.
+ *
+ * Secrets used here are **referenced by name only** and must exist in
+ * AWS Secrets Manager prior to deployment.
+ */
+export class SakakuAiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Secrets (replace names with your existing secret names)
+    // References to existing Secrets Manager secrets (no values in code)
     const discordToken = secrets.Secret.fromSecretNameV2(this, 'DiscordBotToken', 'DISCORD_BOT_TOKEN');
     const discordPublicKey = secrets.Secret.fromSecretNameV2(this, 'DiscordPublicKey', 'DISCORD_PUBLIC_KEY');
     const geminiApiKey = secrets.Secret.fromSecretNameV2(this, 'GeminiApiKey', 'GEMINI_API_KEY');
 
+    // CloudWatch LogGroup for Lambda with 14-day retention
     const logGroup = new logs.LogGroup(this, 'InteractionsFnLogs', {
       retention: logs.RetentionDays.TWO_WEEKS,
     });
 
+    // Lambda function handling Discord interactions
     const interactionsFn = new nodejs.NodejsFunction(this, 'InteractionsFn', {
       runtime: lambda.Runtime.NODEJS_20_X,
       entry: '../runtime/src/handlers/interactions.ts',
@@ -38,13 +46,14 @@ export class DiscordBotStack extends cdk.Stack {
       },
     });
 
-    // Grant read access to the three secrets
+    // Grant least-privilege access to the secrets
     discordToken.grantRead(interactionsFn);
     discordPublicKey.grantRead(interactionsFn);
     geminiApiKey.grantRead(interactionsFn);
 
-    const httpApi = new apigwv2.HttpApi(this, 'DiscordHttpApi', {
-      apiName: 'discord-interactions',
+    // HTTP API that receives Discord interaction webhooks
+    const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
+      apiName: 'sakakuai-api',
       corsPreflight: {
         allowOrigins: ['*'],
         allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.OPTIONS],
@@ -57,6 +66,16 @@ export class DiscordBotStack extends cdk.Stack {
       integration: new integrations.HttpLambdaIntegration('InteractionsIntegration', interactionsFn),
     });
 
-    new cdk.CfnOutput(this, 'ApiUrl', { value: httpApi.apiEndpoint });
+    // Basic alarm on HTTP 5XX errors from the API
+    new cloudwatch.Alarm(this, 'Api5xxAlarm', {
+      metric: httpApi.metricServerError({ period: cdk.Duration.minutes(1) }),
+      threshold: 1,
+      evaluationPeriods: 1,
+    });
+
+    // Stack output: API base URL
+    new cdk.CfnOutput(this, 'ApiUrl', {
+      value: httpApi.apiEndpoint,
+    });
   }
 }
