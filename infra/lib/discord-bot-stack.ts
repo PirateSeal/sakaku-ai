@@ -32,7 +32,6 @@ export class DiscordBotStack extends cdk.Stack {
         SECRETS_DISCORD_TOKEN_NAME: discordToken.secretName,
         SECRETS_DISCORD_PUBLIC_KEY_NAME: discordPublicKey.secretName,
         SECRETS_GEMINI_API_KEY_NAME: geminiApiKey.secretName,
-        EPHEMERAL_DEFAULT: 'true',
         MODEL_ID: 'gemini-1.5-flash',
         RESPONSE_MAX_TOKENS: '1024',
         TIMEOUT_MS: '9000',

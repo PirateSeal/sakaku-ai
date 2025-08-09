@@ -4,6 +4,7 @@ import { verifyDiscordRequest } from '../discord/verify.js';
 import type { Interaction, DiscordResponse } from '../discord/types.js';
 import { askGemini } from '../gemini/client.js';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import { request } from 'undici';
 
 const secrets = new SecretsManagerClient({});
 
@@ -49,61 +50,73 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         return json({
           type: 4,
           data: {
-            content: 'Use `/ask <prompt>` to query Gemini. Replies are ephemeral by default.',
+            content: 'Use `/ask question:<text>` to query Gemini. Add `private:true` for an ephemeral reply.',
             flags: EPHEMERAL_FLAG,
           },
         });
       }
 
       if (name === 'ask') {
-        // Decide whether to defer (simple heuristic)
-        const prompt = (interaction.data.options?.find(o => o.name === 'prompt')?.value ?? '').toString();
-        const shouldDefer = prompt.length > 200 || TIMEOUT_MS < 6000;
+        const opts = interaction.data.options ?? [];
+        const question = (opts.find(o => o.name === 'question')?.value ?? '').toString().trim();
+        const isPrivate =
+          opts.find(o => o.name === 'private')?.value === true ||
+          opts.find(o => o.name === 'private')?.value === 'true';
+        const userId = interaction.member?.user?.id ?? interaction.user?.id ?? 'unknown';
 
-        if (shouldDefer) {
-          // Deferred response
-          queueMicrotask(async () => {
-            try {
-              const apiKey = await getSecret(process.env.SECRETS_GEMINI_API_KEY_NAME!);
-              const answer = await askGemini({
-                apiKey,
-                model: DEFAULT_MODEL,
-                prompt: prompt.slice(0, 4000),
-                maxOutputTokens: RESPONSE_MAX_TOKENS,
-                timeoutMs: TIMEOUT_MS - 1000,
-              });
-
-              // Post follow-up using callback URL
-              // NOTE: For MVP, we simply log the answer. Replace with Discord follow-up call if needed.
-              console.log(JSON.stringify({ requestId, phase: 'followup', answerLen: answer.length }));
-            } catch (err) {
-              console.error(JSON.stringify({ requestId, phase: 'followup_error', err: String(err) }));
-            }
-          });
-
-          return json({
-            type: 5,
-            data: { flags: EPHEMERAL_FLAG },
-          });
-        } else {
-          // Immediate
-          const apiKey = await getSecret(process.env.SECRETS_GEMINI_API_KEY_NAME!);
-          const answer = await askGemini({
-            apiKey,
-            model: DEFAULT_MODEL,
-            prompt: prompt.slice(0, 4000),
-            maxOutputTokens: RESPONSE_MAX_TOKENS,
-            timeoutMs: TIMEOUT_MS - 500,
-          });
-
+        if (!question || question.length > 250) {
+          console.log(JSON.stringify({ requestId, guildId: interaction.guild_id, userId, status: 'invalid' }));
           return json({
             type: 4,
-            data: {
-              content: sanitizeForDiscord(answer),
-              flags: EPHEMERAL_FLAG,
-            },
+            data: { content: 'Invalid question', flags: EPHEMERAL_FLAG },
           });
         }
+
+        queueMicrotask(async () => {
+          const started = Date.now();
+          let status: 'success' | 'timeout' | 'error' = 'success';
+          let content: string;
+          try {
+            const apiKey = await getSecret(process.env.SECRETS_GEMINI_API_KEY_NAME!);
+            const answer = await askGemini({
+              apiKey,
+              model: DEFAULT_MODEL,
+              prompt: question,
+              maxOutputTokens: RESPONSE_MAX_TOKENS,
+              timeoutMs: TIMEOUT_MS - 1000,
+            });
+            content = sanitizeForDiscord(answer);
+          } catch (err) {
+            const msg = String(err).toLowerCase();
+            if (msg.includes('timeout')) {
+              status = 'timeout';
+              content = 'Timeout: please try again';
+            } else {
+              status = 'error';
+              content = 'Sorry, something went wrong. Please try again.';
+            }
+          }
+
+          try {
+            await request(`https://discord.com/api/v10/webhooks/${interaction.application_id}/${interaction.token}`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ content, flags: isPrivate ? EPHEMERAL_FLAG : 0 }),
+            });
+          } catch (err) {
+            console.error(JSON.stringify({ requestId, phase: 'followup_error', err: String(err) }));
+          }
+
+          const latencyMs = Date.now() - started;
+          console.log(
+            JSON.stringify({ requestId, guildId: interaction.guild_id, userId, status, latencyMs })
+          );
+        });
+
+        return json({
+          type: 5,
+          data: { flags: isPrivate ? EPHEMERAL_FLAG : 0 },
+        });
       }
     }
 
@@ -123,7 +136,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
 function sanitizeForDiscord(s: string): string {
   // Minimal sanitization to avoid accidental mentions
-  return s.replace(/@/g, '@​').slice(0, 1800);
+  return s.replace(/@/g, '@​').slice(0, 1000);
 }
 
 function json(body: DiscordResponse): APIGatewayProxyResultV2 {
