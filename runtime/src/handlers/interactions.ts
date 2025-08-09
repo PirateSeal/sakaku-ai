@@ -5,6 +5,8 @@ import type { Interaction, DiscordResponse } from '../discord/types.js';
 import { askGemini } from '../gemini/client.js';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { request } from 'undici';
+import { routeInteraction } from './interaction_router.js';
+import { getSecretString } from '../util/secrets.js';
 
 const secrets = new SecretsManagerClient({});
 
@@ -19,7 +21,7 @@ async function getSecret(name: string): Promise<string> {
   return res.SecretString;
 }
 
-export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+export const legacyHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
   const requestId = event.requestContext.requestId;
   const rawBody = event.body ?? '';
   const sig = event.headers['x-signature-ed25519'] ?? event.headers['X-Signature-Ed25519'];
@@ -169,3 +171,42 @@ function json(body: DiscordResponse): APIGatewayProxyResultV2 {
     body: JSON.stringify(body),
   };
 }
+
+export const handler = async (
+  event: APIGatewayProxyEventV2
+): Promise<APIGatewayProxyResultV2> => {
+  try {
+    const pkName = process.env.SECRETS_DISCORD_PUBLIC_KEY_NAME;
+    if (!pkName) return { statusCode: 500, body: 'Missing public key name' };
+
+    const rawBody = event.body ?? '';
+    const isBase64 = event.isBase64Encoded;
+    const decoded = isBase64
+      ? Buffer.from(rawBody, 'base64').toString('utf8')
+      : rawBody;
+
+    const sig =
+      event.headers['x-signature-ed25519'] ??
+      event.headers['X-Signature-Ed25519'];
+    const ts =
+      event.headers['x-signature-timestamp'] ??
+      event.headers['X-Signature-Timestamp'];
+    if (!sig || !ts)
+      return { statusCode: 401, body: 'Missing signature headers' };
+
+    const publicKey = await getSecretString(pkName);
+    const ok = verifyDiscordRequest(publicKey, String(sig), String(ts), decoded);
+    if (!ok) return { statusCode: 401, body: 'invalid request signature' };
+
+    const interaction = JSON.parse(decoded);
+    const resp = routeInteraction(interaction);
+    return {
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(resp),
+    };
+  } catch (e) {
+    console.error('interactions handler error', e);
+    return { statusCode: 500, body: 'Internal error' };
+  }
+};
