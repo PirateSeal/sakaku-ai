@@ -4,11 +4,15 @@ export interface Interaction {
   type: InteractionType;
   id: string;
   token: string;
+  application_id: string;
   data?: {
     name?: string;
-    options?: { name: string; value: string }[];
+    options?: { name: string; value: string | boolean }[];
   };
   guild_id?: string;
+  channel_id?: string;
+  member?: { user?: { id: string } };
+  user?: { id: string };
 }
 
 export interface DiscordResponse {

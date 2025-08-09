@@ -2,7 +2,7 @@
 # Discord Bot MVP — Gemini Flash + AWS Lambda (TypeScript, CDK)
 
 This repo is a **steering document + skeleton** to ship an MVP Discord bot:
-- **Slash commands**: `/ask <prompt>`, `/help`
+- **Slash commands**: `/ask question:<text> [private:true]`, `/help`
 - **Infra**: AWS **Lambda** + **API Gateway (HTTP API)** + **Secrets Manager**
 - **Runtime**: TypeScript on Node.js 20
 - **IaC**: AWS **CDK v2** (TypeScript)
@@ -12,7 +12,7 @@ This repo is a **steering document + skeleton** to ship an MVP Discord bot:
 
 ## MVP Scope
 
-- `/ask <prompt>` → answer via Gemini Flash (ephemeral by default).
+- `/ask question:<text>` → answer via Gemini Flash (public by default; add `private:true` for ephemeral).
 - `/help` → short usage/help text.
 - Interaction verification (Ed25519) on **every** request.
 - Defer when work > 2s; send follow‑up webhook message.
@@ -55,7 +55,6 @@ This repo is a **steering document + skeleton** to ship an MVP Discord bot:
 - `SECRETS_DISCORD_TOKEN_NAME`
 - `SECRETS_DISCORD_PUBLIC_KEY_NAME`
 - `SECRETS_GEMINI_API_KEY_NAME`
-- `EPHEMERAL_DEFAULT=true`
 - `MODEL_ID=gemini-1.5-flash`
 - `RESPONSE_MAX_TOKENS=1024`
 - `TIMEOUT_MS=9000`
