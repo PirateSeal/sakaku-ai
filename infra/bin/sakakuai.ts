@@ -1,11 +1,11 @@
 import 'source-map-support/register.js';
 import * as cdk from 'aws-cdk-lib';
-import { DiscordBotStack } from '../lib/discord-bot-stack.js';
+import { SakakuAiStack } from '../lib/sakakuai-stack.js';
 
 const app = new cdk.App();
-new DiscordBotStack(app, 'DiscordBotStack', {
+new SakakuAiStack(app, 'SakakuAiStack', {
   env: {
-    // Optionally set your account and region here
+    // Optionally specify the target AWS account and region
     // account: process.env.CDK_DEFAULT_ACCOUNT,
     // region: process.env.CDK_DEFAULT_REGION,
   },
