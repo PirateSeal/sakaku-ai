@@ -4,11 +4,13 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "tsx --test runtime/src/handlers/__tests__/*.ts"
   },
   "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "tsx": "^4.20.3"
   },
   "private": true
 }
