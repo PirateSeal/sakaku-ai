@@ -20,5 +20,6 @@ export interface DiscordResponse {
   data?: {
     content?: string;
     flags?: number;
+    allowed_mentions?: { parse?: string[] };
   };
 }
