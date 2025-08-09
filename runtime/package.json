@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo 'ts handled by CDK NodejsFunction (esbuild)'"
+    "build": "echo 'ts handled by CDK NodejsFunction (esbuild)'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.864.0",
@@ -14,6 +17,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.14.9",
-    "typescript": "^5.5.4"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
   }
 }
