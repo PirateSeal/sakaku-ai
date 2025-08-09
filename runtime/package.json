@@ -1,0 +1,19 @@
+{
+  "name": "discord-gemini-bot-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'ts handled by CDK NodejsFunction (esbuild)'"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.864.0",
+    "@types/aws-lambda": "^8.10.137",
+    "tweetnacl": "^1.0.3",
+    "undici": "^6.19.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "typescript": "^5.5.4"
+  }
+}
