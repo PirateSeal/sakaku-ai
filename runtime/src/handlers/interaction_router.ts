@@ -2,6 +2,9 @@ export type Interaction = import('../discord/types').Interaction;
 export type DiscordResponse = import('../discord/types').DiscordResponse;
 
 const EPHEMERAL_FLAG = 64;
+const ALLOWED_NONE = { parse: [] as string[] };
+const USAGE_ASK = 'Usage: /ask question:<text> [private:true]';
+const USAGE_HELP = 'Use `/ask question:<text> [private:true]` to ask a question. Use `/help` to see this message.';
 
 export const routeInteraction = (interaction: Interaction): DiscordResponse => {
   if (interaction.type === 1) {
@@ -9,14 +12,15 @@ export const routeInteraction = (interaction: Interaction): DiscordResponse => {
   }
 
   if (interaction.type === 2 && interaction.data?.name) {
-    const name = interaction.data.name;
+    const name = String(interaction.data.name).toLowerCase();
 
     if (name === 'help') {
       return {
         type: 4,
         data: {
-          content: 'Use `/ask question:<text> [private:true]` to ask a question. Use `/help` to see this message.',
+          content: USAGE_HELP,
           flags: EPHEMERAL_FLAG,
+          allowed_mentions: ALLOWED_NONE,
         },
       };
     }
@@ -28,14 +32,16 @@ export const routeInteraction = (interaction: Interaction): DiscordResponse => {
 
       const question =
         typeof questionOpt?.value === 'string' ? questionOpt.value.trim() : '';
-      const isPrivate = privateOpt?.value === true;
+      // Be defensive in case value is not strictly boolean at runtime
+      const isPrivate = privateOpt?.value === true || privateOpt?.value === 'true';
 
       if (!question) {
         return {
           type: 4,
           data: {
-            content: 'Usage: /ask question:<text> [private:true]',
+            content: USAGE_ASK,
             flags: EPHEMERAL_FLAG,
+            allowed_mentions: ALLOWED_NONE,
           },
         };
       }
@@ -45,6 +51,7 @@ export const routeInteraction = (interaction: Interaction): DiscordResponse => {
         data: {
           content: 'Processing your question…',
           ...(isPrivate ? { flags: EPHEMERAL_FLAG } : {}),
+          allowed_mentions: ALLOWED_NONE,
         },
       };
     }
@@ -54,6 +61,7 @@ export const routeInteraction = (interaction: Interaction): DiscordResponse => {
       data: {
         content: `Unknown command: ${name}`,
         flags: EPHEMERAL_FLAG,
+        allowed_mentions: ALLOWED_NONE,
       },
     };
   }
@@ -63,6 +71,7 @@ export const routeInteraction = (interaction: Interaction): DiscordResponse => {
     data: {
       content: 'Unsupported interaction type',
       flags: EPHEMERAL_FLAG,
+      allowed_mentions: ALLOWED_NONE,
     },
   };
 };
